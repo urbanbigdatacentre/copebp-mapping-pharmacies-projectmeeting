@@ -1,0 +1,239 @@
+---
+title: "COPE-BP Annual Meeting - WP1 mapping resources"
+author: "Diego Pajarito"
+date: "2025-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## COPE-BP Mapping Markdown document
+
+This R Markdown document is the first attempt to share the mapping resources for COPE-BP. It is designed for sharing at the Annual meeting and performs the basic analysis of fieldwork and survey data prepared within the WP1.
+
+This document is automatically generated using the option **Knit** within an R-Markdown file. Therefore some content might not display correctly. The authors also provide the initial datasets to allow reproducibility of this resources:
+
+### Initial setup
+
+The workflow uses different libraries such as **haven** and **readxl** for data management as well as [sf](https://r-spatial.github.io/sf/), **dplyr** and [leaflet](https://leafletjs.com) for geospatial data management.
+
+```{r packages, include=FALSE}
+# This is only needed once and in environments where the packages are not available
+#install.packages("haven") # Required to process data files
+#install.packages("readxl") # Required to process excell file
+```
+
+```{r libraries, include=FALSE}
+library(haven)
+library(readxl)
+library(sf)
+library(leaflet)
+library(dplyr)
+```
+
+## Data Eploration
+
+The analysis combines to main data sources:
+1- Initial mapping data used during the field work to identify pharmacies.
+2- Survey data from the mapped pharmacies to identify those elegible for the trials. 
+
+Following the data structure shared by our in-country partners and data managers. We load the data set, merge them based on identifiers and apply filters to represent only those elegible.
+
+
+```{r read_data, include=FALSE}
+pk_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_PK_PCQ.dta")
+
+# For Bangladesh, at the moment, geospatial data is not integrated due to some missing values for location
+bd_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_BD_PCQ.dta")
+bd_data_geo <- read_excel("Survey-v2/02_PCS/03_database/01_preload/pk_pharmacy_list.xlsx", sheet="Bangladesh Pharmacy Data")
+```
+
+
+```{r set_geometry, include=FALSE}
+# First we need to add geometries to the data set. We use the values in coordinates stored as columns.
+# This uses a full join to only treat the data with known location
+
+bd_data_geo <- merge(bd_data, bd_data_geo, by.x = "_id", by.y = "_id")
+
+bd_data_geo <- bd_data_geo %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+pk_data_geo <- pk_data %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+```
+
+In order to visualise the geospatial location of the surveyed facilities, there is an option to merge mapping data and survey data. This is done using the merge option 
+
+### Maps of all pharmacies
+
+**Mapped Pharmacies in Bangladesh**
+This map might miss some of the mapped pharmacies found after the initial screening. This will be updated in future versions of this file.
+
+```{r bg_fiter_pharmacies, include=FALSE}
+
+bd_pharmacies <- filter(bd_data_geo, facility_type == "Pharmacy")
+
+#pk_pharmacies <- filter(pk_data_geo, facility_type == "Pharmacy")
+
+```
+
+
+```{r bg_map_pharm_all, echo=FALSE}
+
+pharmacy_icons <- awesomeIcons(
+  icon = 'fa-medkit',
+  markerColor = 'green',
+  library = 'fa',
+  iconColor = 'white'
+)
+
+
+leaflet(bd_data_geo) %>%
+  addTiles() %>%  # Add base map
+  addAwesomeMarkers(icon = pharmacy_icons, popup = ~paste("Type: ", pharm_type))
+
+
+```
+
+**Pharmacy Categories in Bangladesh**
+This map shows the distribution of all mapped pharmacies by categorie identified during the initial screening and survey. 
+
+```{r bg_map_pharm_type, echo=FALSE}
+
+color_phar <- colorFactor(
+  palette = c("darkred", "red", "cadetblue"),
+  domain = bd_data_geo$pharm_catg
+)
+
+
+leaflet(bd_data_geo) %>%
+  addTiles() %>%  # Add base map
+  addCircleMarkers(
+    color = ~color_phar(pharm_catg),
+    radius = 0.8,
+    fillOpacity = 0.9,
+    popup = ~paste("Type:", pharm_catg)
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = color_phar,
+    values = ~pharm_catg,
+    title = "Pharmacy Category"
+  )
+
+
+```
+
+
+
+**Mapped Pharmacies in Pakistan**
+This map includes all pharmacies found during fieldwork. The dataset only contains pharmacies so there is no need for additional filterings
+
+
+```{r pk_map_pharm_all, echo=FALSE}
+
+pharmacy_icons <- awesomeIcons(
+  icon = 'fa-medkit',
+  markerColor = 'green',
+  library = 'fa',
+  iconColor = 'white'
+)
+
+
+leaflet(pk_data_geo) %>%
+  addTiles() %>%  # Add base map
+  addAwesomeMarkers(icon = pharmacy_icons, popup = ~paste("Type: ", pq_pd_type))
+
+
+```
+
+**Pharmacy Categories in Pakistan**
+This map shows the distribution of all mapped pharmacies by type identified during the initial screening and survey.
+According to the data dictionary, the values for pharmacy categories are the following:
+1, Category A | 2, Category B | 3, Category C | 97, Do not know
+
+However, the current values are either just a few values for 1 - 2, and a huge majority as 99
+Or a reange of values. 
+
+This maps represents the different colours and updates will be made based on feedback from data managers. 
+
+```{r pk_map_pharm_type, echo=FALSE}
+
+pk_data_geo$pq_pharm_catg_factor <- 99
+pk_data_geo <- pk_data_geo %>%
+  mutate(pq_pharm_catg_factor = case_when(
+    pq_pharm_catg == 0 ~ "Category A",
+    pq_pharm_catg == 1 ~ "Category B",
+    pq_pharm_catg == 2 ~ "Category C",
+    pq_pharm_catg == 97 ~ "Do not know",
+    TRUE ~ "Do not know"
+  ))
+
+color_phar_pk <- colorFactor(
+  palette = c("red", "darkred", "cadetblue", "grey"),
+  domain = pk_data_geo$pq_pharm_catg
+)
+
+
+leaflet(pk_data_geo) %>%
+  addTiles() %>%  # Add base map
+  addCircleMarkers(
+    color = ~color_phar_pk(pq_pharm_catg),
+    radius = 0.8,
+    fillOpacity = 0.9,
+    popup = ~paste("Type:", pq_pharm_catg)
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = color_phar_pk,
+    values = ~pq_pharm_catg,
+    title = "Pharmacy Category"
+  )
+
+
+
+
+```
+
+
+
+### Maps of elegible pharmacies
+
+Elegible pharmacies are labeled differently for each country.
+
+**Eligible Pharmacies in Bangladesh**
+Eligible pharmacies in Bangladesh are 
+
+```{r bg_filter_elegible_pharmacies, include=FALSE}
+
+bd_pharmacies <- filter(bd_data_geo, facility_type == "Pharmacy")
+
+#pk_pharmacies <- filter(pk_data_geo, facility_type == "Pharmacy")
+
+```
+
+
+
+
+**Eligible Pharmacies in Pakistan**
+Eligible pharmacies in Bangladesh are 
+
+```{r pk_filter_elegible_pharmacies, include=FALSE}
+
+bd_pharmacies <- filter(bd_data_geo, facility_type == "Pharmacy")
+
+#pk_pharmacies <- filter(pk_data_geo, facility_type == "Pharmacy")
+
+```
+
+```{r}
+save.image("cope-bp-mapping-pharmacies.RData")
+```
+
