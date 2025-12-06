@@ -64,7 +64,7 @@ pk_data_geo <- pk_data %>%
 
 ```
 
-## Identifying Spatial Clusters
+## Analysing catchment areas as strata for defining clusters
 
 One first option to cluster pharmacies is based on geographies and locations. This initial setup uses the k-means method to visualise how this cluster is peformed. 
 
@@ -72,7 +72,7 @@ Using data form the city of Dhaka, we
 
 In order to visualise the geospatial location of the surveyed facilities, there is an option to merge mapping data and survey data. This is done using the merge option 
 
-### Maps of all pharmacies
+
 
 **Geospatial clusters in Bangladesh**
 This map might miss some of the mapped pharmacies found after the initial screening. This will be updated in future versions of this file.
@@ -81,10 +81,12 @@ This map might miss some of the mapped pharmacies found after the initial screen
 **Clusters based on catchment areas**
 Despite their location, some pharmacies might serve population from different areas in the city. The survey asks broadly where the clients come from. We use this information to understand how this would serve for the sampling design and pharmacy clusters.
 
-We reorganised the original data to identify the areas (wards, thanas) where pharmacy clients come from. 
-```{r select_pharmacies_client_areas, include=FALSE}
+We reorganised the original data to identify the areas/neighbourhoods/union councils/wards the clients come from.
+
+### **Bangladesh**
+```{r db_select_pharmacies_client_areas, include=FALSE}
 bd_pharm_clients <- bd_data_geo %>% 
-  filter(pq_consent ==1) %>%   # Select olny eligible pharmacies
+  filter(pq_consent ==1) %>%   # Select only eligible pharmacies
   select("_id", "pq_city", "pq_ward", starts_with("pq_c_area"), "geometry")
 
 # There are some other notes about clients that are stored as free text
@@ -103,26 +105,181 @@ bd_pharm_count_wards <- bd_pharm_clients %>%
 )
 ```
 
+The areas were captured as codded values, so we mapped them with their labels to improve readability.
 
 
-```{r bg_plot_pharmacies_clients_areas, echo=FALSE, message=FALSE, warning=FALSE}
+```{r bd_lables_areas,  include=FALSE}
+type_cities <- c(
+  "1" = "Dhaka North City Corporation (DNCC)",
+  "2" = "Dhaka South City Corporation (DSCC)",
+  "3" = "Narsingdi Paurashava",
+  "4" = "Ghorashal Paurashava"
+)
+
+type_areas <- c(
+  "pq_c_area_dncc___11" = "DNCC Ward 5",
+  "pq_c_area_dncc___12" = "DNCC Ward 11",
+  "pq_c_area_dncc___13" = "DNCC Ward 13",
+  "pq_c_area_dncc___14" = "DNCC Ward 15 (Part)",
+  "pq_c_area_dncc___15" = "DNCC Ward 16",
+  "pq_c_area_dncc___16" = "DNCC Ward 19 (Part)",
+  "pq_c_area_dncc___17" = "DNCC Ward 20 (Part)",
+  "pq_c_area_dncc___18" = "DNCC Ward 23",
+  "pq_c_area_dncc___19" = "DNCC Ward 34 (Part)",
+  "pq_c_area_dncc___98" = "DNCC Others",
+  "pq_c_area_dncc___97" = "DNCC Do not know",
+  "pq_c_area_dscc___21" = "DSCC Ward 12",
+  "pq_c_area_dscc___22" = "DSCC Ward 22",
+  "pq_c_area_dscc___23" = "DSCC Ward 33",
+  "pq_c_area_dscc___24" = "DSCC Ward 57",
+  "pq_c_area_dscc___25" = "DSCC Ward 60",
+  "pq_c_area_dscc___26" = "DSCC Ward 71",
+  "pq_c_area_dscc___98" = "DSCC Others",
+  "pq_c_area_dscc___97" = "DSCC Do not know",
+  "pq_c_area_nar___31" = "NP Ward 1",
+  "pq_c_area_nar___32" = "NP Ward 8",
+  "pq_c_area_nar___98" = "NP Others",
+  "pq_c_area_nar___97" = "NP Do not know",
+  "pq_c_area_ghor___41" = "GP Ward 2",
+  "pq_c_area_ghor___42" = "GP Ward 3",
+  "pq_c_area_ghor___43" = "GP Ward 6",
+  "pq_c_area_ghor___44" = "GP Ward 7",
+  "pq_c_area_ghor___98" = "GP Others",
+  "pq_c_area_ghor___97" = "GP Do not know"
+)
+
+
+bd_pharm_count_wards <- bd_pharm_count_wards %>% 
+  mutate(city = type_cities[as.character(pq_city)]) %>% 
+  mutate(area = type_areas[as.character(catch_area)])
+```
+
+This is an example of how the values were coded: 
+
+```{r bd_label_areas_show, results='markup'}
+type_cities
+
+```
+
+While the majority of pharmacies report a single area as the one where their clients come from, there are some others that report additional ones. We can see the proportion of these in the following plot. We will continue analysing those pharmacies that report clients coming from additional areas.
+
+
+```{r bd_plot_pharmacies_clients_areas, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
 # We group all the values and count the different areas reported
 
 bd_pharm_total_areas <- bd_pharm_count_wards %>% 
   rename("idpharm" = "_id") %>% 
   filter(count_catch == 1) %>% 
-  group_by(idpharm, pq_city, pq_ward, geometry) %>% 
+  group_by(idpharm, pq_city, city, pq_ward, geometry) %>% 
   summarise(count = n(),
             total_areas = sum(count_catch, na.rm = TRUE)
             )
 
 # Horizontal bars
-ggplot(bd_pharm_total_areas, aes(x = pq_ward, y = total_areas)) +
-  geom_col() +
-  labs(title = "Count by areas reported to serve",
-       x = "ward",
-       y = "Districts where clients come from") +
-  facet_wrap(~pq_city, scales="free")
+ggplot(bd_pharm_total_areas, aes(x = total_areas)) +
+  geom_histogram() +
+  facet_wrap(~city) +
+  labs(
+    title = "Bangladesh - Where do clients come from? - Aggregated view",
+    x = "Count of reported areas.",
+    y = "Count of pharmacies"
+  ) +
+  theme_minimal()
+```
+
+### **Pakistan**
+```{r pk_select_pharmacies_client_areas, include=FALSE}
+# For Pakistan all pharmacies are eligible
+pk_pharm_clients <- pk_data_geo %>% 
+  select("_id", "pq_city", "pq_ward", starts_with("pq_c_area"), "geometry")
+
+# There are some other notes about clients that are stored as free text
+# this will be analysed independently
+pk_pharm_clients_text <- pk_pharm_clients %>% 
+  select("_id", "pq_city", "pq_ward", "pq_c_area_oth", "geometry") %>% 
+  filter (!is.na("pq_c_area_oth"))
+
+# Firs step is to combine all the values captured as columns in a different rows
+pk_pharm_areas <- pk_pharm_clients %>% 
+  select(-"pq_c_area_oth") %>% pivot_longer(
+  col = starts_with("pq_c_area_"),
+  names_to = ("catch_area"),
+  values_to = ("count_catch"),
+  names_prefix = "area_"
+)
+```
+
+The areas were captured as codded values, so we mapped them with their labels to improve readability.
+
+
+```{r pk_label_areas,  include=FALSE}
+type_cities <- c(
+  "1" = "Peshawar",
+  "2" = "Abbottabad"
+)
+
+type_areas <- c(
+  "pq_c_area_pes___101" = "Hassan Garhi",
+  "pq_c_area_pes___102" = "Palosi",
+  "pq_c_area_pes___103" = "Pawaka",
+  "pq_c_area_pes___104" = "Regi",
+  "pq_c_area_pes___105" = "Sufaid Dheri",
+  "pq_c_area_pes___106" = "Tehkal Bala",
+  "pq_c_area_pes___107" = "Tehkal Payan 1",
+  "pq_c_area_pes___108" = "Tehkal Payan 2",
+  "pq_c_area_pes___109" = "UC Malakandher",
+  "pq_c_area_pes___110" = "UC Shaheen Town",
+  "pq_c_area_pes___111" = "University Town", 
+  "pq_c_area_pes___98" = "GP Others",
+  "pq_c_area_pes___97" = "GP Do not know",
+  "pq_c_area_abt___212" = "Baldhari",
+  "pq_c_area_abt___213" = "Jhangi",
+  "pq_c_area_abt___214" = "Malikpura",
+  "pq_c_area_abt___215" = "Mirpur",
+  "pq_c_area_abt___216" = "Shaikul Bandi",
+  "pq_c_area_abt___217" = "UC Nawansher",
+  "pq_c_area_abt___97" = "AB Do not know",
+  "pq_c_area_abt___98" = "AB Others",
+  "pq_c_area_ghor___98" = "GP Others",
+  "pq_c_area_ghor___97" = "GP Do not know"
+)
+
+pk_pharm_count_areas <- pk_pharm_areas %>% 
+  mutate(city = type_cities[as.character(pq_city)]) %>% 
+  mutate(area = type_areas[as.character(catch_area)])
+```
+
+This is an example of how the values were coded: 
+
+```{r bg_lables_areas_show, results='markup'}
+type_cities
 
 ```
+
+In pakistan multiple pharmacies report more than a single areas the one where their clients come from. We can see the proportion of these in the following plot. We will continue analysing those pharmacies that report clients coming from additional areas.
+
+
+```{r pk_plot_pharmacies_clients_areas, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+# We group all the values and count the different areas reported
+
+pk_pharm_total_areas <- pk_pharm_count_areas %>% 
+  rename("idpharm" = "_id") %>% 
+  filter(count_catch == 1) %>% 
+  group_by(idpharm, pq_city, city, pq_ward, geometry) %>% 
+  summarise(count = n(),
+            total_areas = sum(count_catch, na.rm = TRUE)
+            )
+
+# Horizontal bars
+ggplot(pk_pharm_total_areas, aes(x = total_areas)) +
+  geom_histogram() +
+  facet_wrap(~city) +
+  labs(
+    title = "Bangladesh - Where do clients come from? - Aggregated view",
+    x = "Count of reported areas.",
+    y = "Count of pharmacies"
+  ) +
+  theme_minimal()
+```
+
 
