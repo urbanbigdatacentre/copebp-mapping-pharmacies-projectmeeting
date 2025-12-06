@@ -23,6 +23,7 @@ The workflow uses different libraries such as **haven** and **readxl** for data 
 # This is only needed once and in environments where the packages are not available
 #install.packages("haven") # Required to process data files
 #install.packages("readxl") # Required to process excell file
+#install.packages("leaflet.extras")
 ```
 
 ```{r libraries, include=FALSE}
@@ -30,9 +31,11 @@ library(haven)
 library(readxl)
 library(sf)
 library(leaflet)
+library(leaflet.extras)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(stringr)
 ```
 
 
@@ -175,17 +178,126 @@ bd_pharm_total_areas <- bd_pharm_count_wards %>%
             total_areas = sum(count_catch, na.rm = TRUE)
             )
 
-# Horizontal bars
+# Vertical bars
 ggplot(bd_pharm_total_areas, aes(x = total_areas)) +
   geom_histogram() +
   facet_wrap(~city) +
   labs(
-    title = "Bangladesh - Where do clients come from? - Aggregated view",
+    title = "Pakistan - Where do clients come from? - Aggregated view",
     x = "Count of reported areas.",
     y = "Count of pharmacies"
   ) +
   theme_minimal()
 ```
+
+
+
+When detailing how these pharmacies reporting their clients coming from other areas refer to those sites, we find that the survey capture pharmacies reporting clients coming from areas out of our study areas (e.g., Others) or unknown areas (e.g., I don't know). The plot below shows that not all reported locations are known and this would make isolating pharmacies based on the origin of their clients to prevent cross contamination more difficult. 
+
+Note: This analysis does not consider those locations reported as a free text in the survey. This require additional case-specific analysis.
+
+```{r bd_pharm_multi_areas, include=FALSE}
+# We group all the values and count the different areas reported
+bd_pharm_multi_area <- bd_pharm_count_wards %>% 
+  filter(!str_ends(catch_area, as.character(pq_ward))) %>% 
+  filter(count_catch > 0)
+
+bd_pharm_multi_area <- bd_pharm_multi_area %>% 
+  rename("pharmid"= "_id")
+```
+
+```{r bd_pharm_multi_areas_location,  include=FALSE}
+
+bd_pharm_multi_area <- bd_pharm_multi_area %>%
+  mutate(location = case_when(
+    str_ends(catch_area, "98") ~ "Other",
+    str_ends(catch_area, "97") ~ "Unknown",
+    TRUE ~ "Known"
+  ))
+
+```
+
+```{r bd_pharm_single_areas, include=FALSE}
+bd_pharm_single_area <- bd_pharm_count_wards %>% 
+  filter(str_ends(catch_area, as.character(pq_ward)) & !"_id" %in% bd_pharm_multi_area$pharmid )
+bd_pharm_single_area <- bd_pharm_single_area %>% 
+  rename("pharmid"= "_id")
+
+```
+
+```{r bd_pharm_multi_areas_location_plot, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+# Horizontal bars
+ggplot(bd_pharm_multi_area, aes(y = city, fill=location)) +
+  geom_bar() +
+  #facet_wrap(~city) +
+  labs(
+    title = "Bangladesh - Clients from other area",
+    x = "Count of locations",
+    y = "",
+    fill = "Reported location"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+Still it is possible to work with the subset of pharmacies i) reporting clients coming form a different area and ii) reporting a known location. We use a visualisation technique to link each pharmacy and the reported location to understand the spatial relationships between the pharmacy and the catchment area. 
+Note: This analysis focuses on those links with areas different to the one the pharmacy is located at. It is safe to assume that all pharmacies serve clients from the area they are located.
+
+Note: that the team did not obtain admin boundaries for "Ghorashal Paurashava"
+
+
+
+
+```{r bg_map_pharm_zones, echo=FALSE}
+# Classifying pharmacies into those reporting areas where their clients come from as different from the one it is located
+
+
+color_loc <- colorFactor(
+  palette = c("darkgreen",  "darkred"),
+  domain = bd_pharm_multi_area$location
+)
+
+leaflet() %>%
+  addTiles(group = "OpenStreetMap") %>%  # Add base map
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") %>%
+  addCircles(
+    data = bd_pharm_single_area,
+    weight =  1.8,
+    color = "darkblue",
+    fillOpacity = 0.9,
+    stroke = TRUE,
+    popup = ~paste("_id:", pharmid),
+    group = "Pharmacies"
+  ) %>%
+  addCircleMarkers(
+    data = bd_pharm_multi_area,
+    color = ~color_loc(location),
+    radius = 2.8,
+    fillOpacity = 0.6,
+    popup = ~paste("_id: ", as.character(pharmid), " & Rep. Location:", location),
+    group = "Parmacies with clients in other Area"
+  ) %>% 
+  addLegend(
+    "bottomright",
+    pal = color_loc,
+    values = bd_pharm_multi_area$location,
+    title = "Location where client come from"
+  ) %>% 
+  # Add layers control (toggle and radio)
+  addLayersControl(
+    baseGroups = c("OpenStreetMap", "Satellite"),
+    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) %>%
+  addFullscreenControl()
+
+```
+
+
+
+
+
+
 
 ### **Pakistan**
 ```{r pk_select_pharmacies_client_areas, include=FALSE}
@@ -275,7 +387,7 @@ ggplot(pk_pharm_total_areas, aes(x = total_areas)) +
   geom_histogram() +
   facet_wrap(~city) +
   labs(
-    title = "Bangladesh - Where do clients come from? - Aggregated view",
+    title = "Pakistan - Where do clients come from? - Aggregated view",
     x = "Count of reported areas.",
     y = "Count of pharmacies"
   ) +
