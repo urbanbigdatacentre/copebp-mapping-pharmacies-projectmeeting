@@ -6,6 +6,6 @@ The project displays multiple test resources that constantly change. For additio
 ## Existing Resources
 
  - [General maps for the project meeting 2025](COPE-BP-mapping.html)
- - [Cluster analysis for the project meting 2025](COPE-BP-mapping-clusters.html)
+ - [Descriptive cluster analysis for the project meting 2025](COPE-BP-mapping-clusters.html)
 
 This project is maintained by the [Urban Big Data Centre](https://www.ubdc.ac.uk)
