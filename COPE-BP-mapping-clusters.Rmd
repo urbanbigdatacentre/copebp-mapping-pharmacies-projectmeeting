@@ -1,0 +1,128 @@
+---
+title: "COPE-BP Annual Meeting - WP1 mapping clusters"
+author: "Diego Pajarito"
+date: "2025-12-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## COPE-BP Mapping Clusters Markdown document
+
+This R Markdown document is designed for sharing resources at the Annual meeting and contain analysis of fieldwork and survey data prepared within the WP1.
+
+This document is automatically generated using the option **Knit** within an R-Markdown file. Therefore some content might not display correctly. Please contact the [Diego Pajarito Grajales](mailto:Diego.PajaritoGrajales@glasgow.ac.uk) for any additional requirement.
+
+### Initial setup
+
+The workflow uses different libraries such as **haven** and **readxl** for data management as well as [sf](https://r-spatial.github.io/sf/), **dplyr** and [leaflet](https://leafletjs.com) for geospatial data management.
+
+```{r packages, include=FALSE}
+# This is only needed once and in environments where the packages are not available
+#install.packages("haven") # Required to process data files
+#install.packages("readxl") # Required to process excell file
+```
+
+```{r libraries, include=FALSE}
+library(haven)
+library(readxl)
+library(sf)
+library(leaflet)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+
+
+```{r read_data, include=FALSE}
+pk_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_PK_PCQ.dta")
+
+# For Bangladesh, at the moment, geospatial data is not integrated due to some missing values for location
+bd_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_BD_PCQ.dta")
+bd_data_geo <- read_excel("Survey-v2/02_PCS/03_database/01_preload/pk_pharmacy_list.xlsx", sheet="Bangladesh Pharmacy Data")
+```
+
+
+```{r set_geometry, include=FALSE}
+# First we need to add geometries to the data set. We use the values in coordinates stored as columns.
+# This uses a full join to only treat the data with known location
+
+bd_data_geo <- merge(bd_data, bd_data_geo, by.x = "_id", by.y = "_id")
+
+bd_data_geo <- bd_data_geo %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+pk_data_geo <- pk_data %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+```
+
+## Identifying Spatial Clusters
+
+One first option to cluster pharmacies is based on geographies and locations. This initial setup uses the k-means method to visualise how this cluster is peformed. 
+
+Using data form the city of Dhaka, we 
+
+In order to visualise the geospatial location of the surveyed facilities, there is an option to merge mapping data and survey data. This is done using the merge option 
+
+### Maps of all pharmacies
+
+**Geospatial clusters in Bangladesh**
+This map might miss some of the mapped pharmacies found after the initial screening. This will be updated in future versions of this file.
+
+
+**Clusters based on catchment areas**
+Despite their location, some pharmacies might serve population from different areas in the city. The survey asks broadly where the clients come from. We use this information to understand how this would serve for the sampling design and pharmacy clusters.
+
+We reorganised the original data to identify the areas (wards, thanas) where pharmacy clients come from. 
+```{r select_pharmacies_client_areas, include=FALSE}
+bd_pharm_clients <- bd_data_geo %>% 
+  filter(pq_consent ==1) %>%   # Select olny eligible pharmacies
+  select("_id", "pq_city", "pq_ward", starts_with("pq_c_area"), "geometry")
+
+# There are some other notes about clients that are stored as free text
+# this will be analysed independently
+bd_pharm_clients_text <- bd_pharm_clients %>% 
+  select("_id", "pq_city", "pq_ward", "pq_c_area_oth", "geometry") %>% 
+  filter (!is.na("pq_c_area_oth"))
+
+# Firs step is to combine all the values captured as columns in a different rows
+bd_pharm_count_wards <- bd_pharm_clients %>% 
+  select(-"pq_c_area_oth") %>% pivot_longer(
+  col = starts_with("pq_c_area_"),
+  names_to = ("catch_area"),
+  values_to = ("count_catch"),
+  names_prefix = "area_"
+)
+```
+
+
+
+```{r bg_plot_pharmacies_clients_areas, echo=FALSE, message=FALSE, warning=FALSE}
+# We group all the values and count the different areas reported
+
+bd_pharm_total_areas <- bd_pharm_count_wards %>% 
+  rename("idpharm" = "_id") %>% 
+  filter(count_catch == 1) %>% 
+  group_by(idpharm, pq_city, pq_ward, geometry) %>% 
+  summarise(count = n(),
+            total_areas = sum(count_catch, na.rm = TRUE)
+            )
+
+# Horizontal bars
+ggplot(bd_pharm_total_areas, aes(x = pq_ward, y = total_areas)) +
+  geom_col() +
+  labs(title = "Count by areas reported to serve",
+       x = "ward",
+       y = "Districts where clients come from") +
+  facet_wrap(~pq_city, scales="free")
+
+```
+
