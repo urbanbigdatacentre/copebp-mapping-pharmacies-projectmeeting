@@ -183,8 +183,8 @@ ggplot(bd_pharm_total_areas, aes(x = total_areas)) +
   geom_histogram() +
   facet_wrap(~city) +
   labs(
-    title = "Pakistan - Where do clients come from? - Aggregated view",
-    x = "Count of reported areas.",
+    title = "Pakistan - Areas where clients come from ",
+    x = "Number of dreas reported by pharmacies.",
     y = "Count of pharmacies"
   ) +
   theme_minimal()
@@ -263,7 +263,7 @@ leaflet() %>%
   addCircles(
     data = bd_pharm_single_area,
     weight =  1.8,
-    color = "darkblue",
+    color = "red",
     fillOpacity = 0.9,
     stroke = TRUE,
     popup = ~paste("_id:", pharmid),
@@ -368,7 +368,7 @@ type_cities
 
 ```
 
-In pakistan multiple pharmacies report more than a single areas the one where their clients come from. We can see the proportion of these in the following plot. We will continue analysing those pharmacies that report clients coming from additional areas.
+In Pakistan multiple pharmacies report more areas where their clients come from. We can see the proportion of these in the following plot as a wider variety. We will continue analysing those pharmacies that report clients coming from additional areas.
 
 
 ```{r pk_plot_pharmacies_clients_areas, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
@@ -387,11 +387,199 @@ ggplot(pk_pharm_total_areas, aes(x = total_areas)) +
   geom_histogram() +
   facet_wrap(~city) +
   labs(
-    title = "Pakistan - Where do clients come from? - Aggregated view",
-    x = "Count of reported areas.",
+    title = "Pakistan - Areas where clients come from ",
+    x = "Number of dreas reported by pharmacies.",
     y = "Count of pharmacies"
   ) +
   theme_minimal()
 ```
 
 
+
+As in Bangladesh, pharmacies reporting clients coming from more areas different from where they are located. The plot below shows that not all reported locations are known and this would make isolating pharmacies based on the origin of their clients to prevent cross contamination more difficult. 
+
+Note: This analysis does not consider those locations reported as a free text in the survey. This require additional case-specific analysis.
+
+```{r pk_pharm_multi_areas, include=FALSE}
+# We group all the values and count the different areas reported
+pk_pharm_multi_area <- pk_pharm_count_areas %>% 
+  filter(!str_ends(catch_area, as.character(pq_ward))) %>% 
+  filter(count_catch > 0)
+
+pk_pharm_multi_area <- pk_pharm_multi_area %>% 
+  rename("pharmid"= "_id")
+```
+
+```{r pk_pharm_multi_areas_location,  include=FALSE}
+
+pk_pharm_multi_area <- pk_pharm_multi_area %>%
+  mutate(location = case_when(
+    str_ends(catch_area, "98") ~ "Other",
+    str_ends(catch_area, "97") ~ "Unknown",
+    TRUE ~ "Known"
+  ))
+
+```
+
+```{r pk_pharm_single_areas, include=FALSE}
+pk_pharm_single_area <- pk_pharm_count_areas %>% 
+  filter(str_ends(catch_area, as.character(pq_ward)) & !"_id" %in% pk_pharm_multi_area$pharmid )
+
+pk_pharm_single_area <- pk_pharm_single_area %>% 
+  rename("pharmid"= "_id")
+
+```
+
+```{r pk_pharm_multi_areas_location_plot, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+# Horizontal bars
+ggplot(pk_pharm_multi_area, aes(y = city, fill=location)) +
+  geom_bar() +
+  #facet_wrap(~city) +
+  labs(
+    title = "Pakistan - Clients from other area",
+    x = "Count of locations",
+    y = "",
+    fill = "Reported location"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+In this case, there are just a few pharmacies reporting unknown areas where their clients come from. It is feasible to analyse the links between the pharmacies and the reported known location. We use a visualisation technique to link each pharmacy and the reported location to understand the spatial relationships between the pharmacy and the catchment area. 
+Note: This analysis focuses on those links with areas different to the one the pharmacy is located at. It is safe to assume that all pharmacies serve clients from the area they are located.
+
+Note: Some of the areas were mapped to bigger divisions than the ones recorded in the survey (e.g., Hassan Garhi I, Malikpura)
+
+
+```{r pk_geo_uc_filter, include=FALSE}
+# For Bangladesh, at the moment, geospatial data is not integrated due to some missing values for location
+pk_uc <- st_read("Reference-data/pak_admbnda_union_council.geojson")
+pk_uc <- pk_uc %>% 
+  filter(!is.na(survey_code)) %>% 
+  select(TEHSIL, UC, UC_NAME, survey_code, geometry)
+
+```
+
+
+```{r pk_geo_function_curves, include=FALSE}
+
+# A function to generate arc as lines
+create_arc <- function(from_point, to_point, n_points = 50) {
+  from_coords <- st_coordinates(from_point)
+  to_coords <- st_coordinates(to_point)
+  
+  # Create bezier-like curve
+  t <- seq(0, 1, length.out = n_points)
+  
+  # Calculate midpoint with elevation for arc effect
+  mid_x <- (from_coords[1] + to_coords[1]) / 2
+  mid_y <- (from_coords[2] + to_coords[2]) / 2
+  
+  # Add curvature
+  curve_height <- 0.01  # Adjust for more/less curve
+  
+  x_curve <- from_coords[1] * (1-t)^2 + 
+             2 * mid_x * (1-t) * t + 
+             to_coords[1] * t^2
+  
+  y_curve <- from_coords[2] * (1-t)^2 + 
+             2 * (mid_y + curve_height) * (1-t) * t + 
+             to_coords[2] * t^2
+  
+  st_linestring(cbind(x_curve, y_curve))
+}
+
+# Extract the coded areas in the survey data. These are stored as the ending text of column names
+pk_pharm_multi_area$client_area <- as.integer(substr(pk_pharm_multi_area$catch_area, nchar(pk_pharm_multi_area$catch_area) - 3 + 1, nchar(pk_pharm_multi_area$catch_area)))
+
+
+
+```
+
+```{r pk_geo_build_curves, warning=FALSE, include=FALSE}
+
+
+# Remove rows where the client area is not identified
+pk_pharm_areas <- pk_pharm_multi_area %>% 
+  filter(!is.na(client_area))
+
+pk_pharm_areas_arcs <- st_sf(pharmid = character(),
+  survey_code = character(),
+  geometry = st_sfc(crs = 4326))
+
+for(i in 1:nrow(pk_pharm_areas)) {
+  # Get value of pacient area
+  areacode <- pk_pharm_areas[i,]$client_area
+  
+  # Find the referred uc
+  match_uc <- pk_uc %>% 
+    filter(survey_code == areacode)
+  
+  new_row <- st_sf(
+    pharmid = pk_pharm_areas[i,]$pharmid,
+    survey_code = match_uc$survey_code,
+    geometry = st_sfc(create_arc(pk_pharm_areas[i,], st_centroid(match_uc), 50), crs = 4326)
+  )
+
+  pk_pharm_areas_arcs <- rbind(pk_pharm_areas_arcs, new_row)
+}
+
+
+```
+
+  
+
+
+```{r pk_map_pharm_zones, echo=FALSE}
+# Classifying pharmacies into those reporting areas where their clients come from as different from the one it is located
+
+
+color_loc <- colorFactor(
+  palette = c("darkgreen",  "darkred"),
+  domain = pk_pharm_multi_area$location
+)
+
+leaflet() %>%
+  addTiles(group = "OpenStreetMap") %>%  # Add base map
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") %>%
+  addCircles(
+    data = pk_pharm_single_area,
+    weight =  1.8,
+    color = "red",
+    fillOpacity = 0.9,
+    stroke = TRUE,
+    popup = ~paste("_id:", pharmid),
+    group = "Pharmacies"
+  ) %>%
+  addCircleMarkers(
+    data = pk_pharm_multi_area,
+    color = ~color_loc(location),
+    radius = 2.8,
+    fillOpacity = 0.6,
+    popup = ~paste("_id: ", as.character(pharmid), " & Rep. Location:", location),
+    group = "Parmacies with clients in other Area"
+  ) %>% 
+  addPolylines(
+    data = pk_pharm_areas_arcs,
+    group = "Pharmacy arc links",
+    color = "darkgreen",
+    fill = FALSE,
+    stroke = TRUE,
+    weight = 0.4
+  ) %>% 
+  addLegend(
+    "bottomright",
+    pal = color_loc,
+    values = pk_pharm_multi_area$location,
+    title = "Location where client come from"
+  ) %>% 
+  # Add layers control (toggle and radio)
+  addLayersControl(
+    baseGroups = c("OpenStreetMap", "Satellite"),
+    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area", "Pharmacy arc links"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) %>%
+  addFullscreenControl()
+
+```
