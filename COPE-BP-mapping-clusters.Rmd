@@ -245,7 +245,80 @@ Note: This analysis focuses on those links with areas different to the one the p
 
 Note: that the team did not obtain admin boundaries for "Ghorashal Paurashava"
 
+```{r bg_geo_uc_filter, include=FALSE}
+# For Bangladesh, at the moment, geospatial data is not integrated due to some missing values for location
+bd_wards <- st_read("Reference-data/bgd_admbnda_adm4_bbs_20201113.geojson")
+bd_wards <- bd_wards %>% 
+  filter(!is.na(survey_code)) %>% 
+  select(ADM4_EN, ADM2_EN, survey_code, geometry)
 
+```
+
+```{r bg_geo_function_curves, include=FALSE}
+
+# A function to generate arc as lines
+create_arc <- function(from_point, to_point, n_points = 50) {
+  from_coords <- st_coordinates(from_point)
+  to_coords <- st_coordinates(to_point)
+  
+  # Create bezier-like curve
+  t <- seq(0, 1, length.out = n_points)
+  
+  # Calculate midpoint with elevation for arc effect
+  mid_x <- (from_coords[1] + to_coords[1]) / 2
+  mid_y <- (from_coords[2] + to_coords[2]) / 2
+  
+  # Add curvature
+  curve_height <- 0.01  # Adjust for more/less curve
+  
+  x_curve <- from_coords[1] * (1-t)^2 + 
+             2 * mid_x * (1-t) * t + 
+             to_coords[1] * t^2
+  
+  y_curve <- from_coords[2] * (1-t)^2 + 
+             2 * (mid_y + curve_height) * (1-t) * t + 
+             to_coords[2] * t^2
+  
+  st_linestring(cbind(x_curve, y_curve))
+}
+
+# Extract the coded areas in the survey data. These are stored as the ending text of column names
+bd_pharm_multi_area$client_area <- as.integer(substr(bd_pharm_multi_area$catch_area, nchar(bd_pharm_multi_area$catch_area) - 2 + 1, nchar(bd_pharm_multi_area$catch_area)))
+
+
+
+```
+
+Note: For the Bangladesh analysis, we only obtained data about Dhaka wards. Analysis of areas in Narsingdi is pending
+```{r bg_geo_build_curves, warning=FALSE, include=FALSE}
+
+# Remove rows where the client area is not identified
+bd_pharm_areas <- bd_pharm_multi_area %>% 
+  filter(client_area < 30)
+
+bd_pharm_areas_arcs <- st_sf(pharmid = character(),
+  survey_code = character(),
+  geometry = st_sfc(crs = 4326))
+
+for(i in 1:nrow(bd_pharm_areas)) {
+  # Get value of pacient area
+  areacode <- bd_pharm_areas[i,]$client_area
+  
+  # Find the referred ward
+  match_ward <- bd_wards %>% 
+    filter(survey_code == areacode)
+  
+  new_row <- st_sf(
+    pharmid = bd_pharm_areas[i,]$pharmid,
+    survey_code = match_ward$survey_code,
+    geometry = st_sfc(create_arc(bd_pharm_areas[i,], st_centroid(match_ward), 50), crs = 4326)
+  )
+
+  bd_pharm_areas_arcs <- rbind(bd_pharm_areas_arcs, new_row)
+}
+
+
+```
 
 
 ```{r bg_map_pharm_zones, echo=FALSE}
@@ -277,6 +350,14 @@ leaflet() %>%
     popup = ~paste("_id: ", as.character(pharmid), " & Rep. Location:", location),
     group = "Parmacies with clients in other Area"
   ) %>% 
+  addPolylines(
+    data = bd_pharm_areas_arcs,
+    group = "Pharmacy arc links",
+    color = "darkgreen",
+    fill = FALSE,
+    stroke = TRUE,
+    weight = 2
+  ) %>%
   addLegend(
     "bottomright",
     pal = color_loc,
@@ -286,7 +367,7 @@ leaflet() %>%
   # Add layers control (toggle and radio)
   addLayersControl(
     baseGroups = c("OpenStreetMap", "Satellite"),
-    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area"),
+    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area", "Pharmacy arc links"),
     options = layersControlOptions(collapsed = FALSE)
   ) %>%
   addFullscreenControl()
