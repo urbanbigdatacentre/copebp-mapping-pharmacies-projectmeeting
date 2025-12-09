@@ -333,6 +333,15 @@ color_loc <- colorFactor(
 leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%  # Add base map
   addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") %>%
+  addPolygons(
+    data = bd_wards,
+    group = "Wards", 
+    stroke = TRUE,
+    color = "orange",
+    fill = TRUE,
+    fillOpacity = 0.4,
+    weight = 3
+  ) %>% 
   addCircles(
     data = bd_pharm_single_area,
     weight =  1.8,
@@ -367,7 +376,7 @@ leaflet() %>%
   # Add layers control (toggle and radio)
   addLayersControl(
     baseGroups = c("OpenStreetMap", "Satellite"),
-    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area", "Pharmacy arc links"),
+    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area", "Pharmacy arc links", "Wards"),
     options = layersControlOptions(collapsed = FALSE)
   ) %>%
   addFullscreenControl()
@@ -624,6 +633,15 @@ color_loc <- colorFactor(
 leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%  # Add base map
   addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") %>%
+  addPolygons(
+    data = pk_uc,
+    group = "Union Councils", 
+    stroke = TRUE,
+    color = "orange",
+    fill = TRUE,
+    fillOpacity = 0.4,
+    weight = 3
+  ) %>% 
   addCircles(
     data = pk_pharm_single_area,
     weight =  1.8,
@@ -658,7 +676,7 @@ leaflet() %>%
   # Add layers control (toggle and radio)
   addLayersControl(
     baseGroups = c("OpenStreetMap", "Satellite"),
-    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area", "Pharmacy arc links"),
+    overlayGroups = c("Pharmacies", "Parmacies with clients in other Area", "Pharmacy arc links", "Union Councils"),
     options = layersControlOptions(collapsed = FALSE)
   ) %>%
   addFullscreenControl()
