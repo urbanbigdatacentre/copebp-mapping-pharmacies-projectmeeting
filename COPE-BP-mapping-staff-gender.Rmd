@@ -1,0 +1,106 @@
+---
+title: "COPE-BP Annual Meeting - WP1 mapping staff gender"
+author: "Diego Pajarito"
+date: "2025-12-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## COPE-BP Mapping Clusters Markdown document
+
+This R Markdown document is designed for sharing resources at the Annual meeting and contain analysis of fieldwork and survey data prepared within the WP1.
+
+This document is automatically generated using the option **Knit** within an R-Markdown file. Therefore some content might not display correctly. Please contact the [Diego Pajarito Grajales](mailto:Diego.PajaritoGrajales@glasgow.ac.uk) for any additional requirement.
+
+### Initial setup
+
+The workflow uses different libraries such as **haven** and **readxl** for data management as well as [sf](https://r-spatial.github.io/sf/), **dplyr** and [leaflet](https://leafletjs.com) for geospatial data management.
+
+```{r packages, include=FALSE}
+# This is only needed once and in environments where the packages are not available
+#install.packages("haven") # Required to process data files
+#install.packages("readxl") # Required to process excell file
+#install.packages("leaflet.extras")
+```
+
+```{r libraries, include=FALSE}
+library(haven)
+library(readxl)
+library(sf)
+library(leaflet)
+library(leaflet.extras)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+```
+
+
+
+```{r read_data, include=FALSE}
+pk_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_PK_PCQ.dta")
+
+# For Bangladesh, at the moment, geospatial data is not integrated due to some missing values for location
+bd_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_BD_PCQ.dta")
+bd_data_geo <- read_excel("Survey-v2/02_PCS/03_database/01_preload/pk_pharmacy_list.xlsx", sheet="Bangladesh Pharmacy Data")
+```
+
+
+```{r set_geometry, include=FALSE}
+# First we need to add geometries to the data set. We use the values in coordinates stored as columns.
+# This uses a full join to only treat the data with known location
+
+bd_data_geo <- merge(bd_data, bd_data_geo, by.x = "_id", by.y = "_id")
+
+bd_data_geo <- bd_data_geo %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+pk_data_geo <- pk_data %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+```
+
+## Identifying Staff Gender
+
+The survey asks for details about members of staff. 
+
+
+### **Identifying gender** sex data is in columns pq_stN_sex
+1- Male
+2- Female
+
+```{r db_select_pharmacies_client_areas, include=FALSE}
+bd_pharm_staff_sex <- bd_data_geo %>% 
+  filter(pq_consent ==1) %>%   # Select only eligible pharmacies
+  select("_id", "pq_city", "pq_ward", ends_with("sex"), "geometry")
+
+pk_pharm_staff_sex <- pk_data_geo %>% 
+  # filter(pq_consent ==1) %>%   # All pharmacies are only eligible pharmacies
+  select("_id", "pq_city", "pq_ward", ends_with("sex"), "geometry")
+
+```
+
+Once the values are isolated, we count the values in all columns .
+
+```{r db_select_pharmacies_client_areas, include=FALSE}
+bd_pharm_staff_sex <- bd_pharm_staff_sex %>% 
+  mutate(count_female = rowSums(across(ends_with("sex")) == 2, na.rm = TRUE)) %>% 
+  mutate(count_male = rowSums(across(ends_with("sex")) == 1, na.rm = TRUE))
+
+pk_pharm_staff_sex <- pk_pharm_staff_sex %>% 
+  mutate(count_female = rowSums(across(ends_with("sex")) == 2, na.rm = TRUE)) %>% 
+  mutate(count_male = rowSums(across(ends_with("sex")) == 1, na.rm = TRUE))
+
+```
+
+```{r}
+st_sav
+```
+
