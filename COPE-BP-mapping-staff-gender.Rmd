@@ -76,7 +76,7 @@ The survey asks for details about members of staff.
 1- Male
 2- Female
 
-```{r db_select_pharmacies_client_areas, include=FALSE}
+```{r db_select_pharmacies_staff_sex, include=FALSE}
 bd_pharm_staff_sex <- bd_data_geo %>% 
   filter(pq_consent ==1) %>%   # Select only eligible pharmacies
   select("_id", "pq_city", "pq_ward", ends_with("sex"), "geometry")
@@ -89,7 +89,7 @@ pk_pharm_staff_sex <- pk_data_geo %>%
 
 Once the values are isolated, we count the values in all columns .
 
-```{r db_select_pharmacies_client_areas, include=FALSE}
+```{r db_count_pharmacies_staff_sex, include=FALSE}
 bd_pharm_staff_sex <- bd_pharm_staff_sex %>% 
   mutate(count_female = rowSums(across(ends_with("sex")) == 2, na.rm = TRUE)) %>% 
   mutate(count_male = rowSums(across(ends_with("sex")) == 1, na.rm = TRUE))
@@ -100,7 +100,69 @@ pk_pharm_staff_sex <- pk_pharm_staff_sex %>%
 
 ```
 
-```{r}
-st_sav
+```{r db_cat_pharmacies_sex_clients, include=FALSE}
+bd_pharm_staff_sex <- bd_pharm_staff_sex %>% 
+  mutate(female_staff = case_when(
+    count_female >= 1 ~ 'YES',
+    TRUE ~ 'NO'
+  ))
+
+pk_pharm_staff_sex <- pk_pharm_staff_sex %>% 
+  mutate(female_staff = case_when(
+    count_female >= 1 ~ 'YES',
+    TRUE ~ 'NO'
+  ))
+
+```
+
+```{r save_data_as_geojson, include=FALSE}
+st_write(bd_pharm_staff_sex, "survey-data/bd_pharm_staff_sex.geojson", delete_dsn = TRUE)
+st_write(pk_pharm_staff_sex, "survey-data/pk_pharm_staff_sex.geojson", delete_dsn = TRUE)
+```
+
+
+
+```{r map_pharm_staff_sex, echo=FALSE}
+# Classifying pharmacies into those reporting areas where their clients come from as different from the one it is located
+
+
+color_loc <- colorFactor(
+  palette = c("darkred", "darkgreen"),
+  domain = bd_pharm_staff_sex$female_staff
+)
+
+leaflet() %>%
+  addTiles(group = "OpenStreetMap") %>%  # Add base map
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") %>%
+  addCircleMarkers(
+    data = bd_pharm_staff_sex,
+    color = ~color_loc(female_staff),
+    radius = 2.8,
+    fillOpacity = 0.6,
+    popup = ~paste("_id: ", as.character('_id')),
+    group = "Pharmacies - Staf by SEX"
+  ) %>% 
+  addCircleMarkers(
+    data = pk_pharm_staff_sex,
+    color = ~color_loc(female_staff),
+    radius = 2.8,
+    fillOpacity = 0.6,
+    popup = ~paste("_id: ", as.character('_id')),
+    group = "Pharmacies - Staf by SEX"
+  ) %>% 
+  addLegend(
+    "bottomright",
+    pal = color_loc,
+    values = pk_pharm_staff_sex$female_staff,
+    title = "Female stuff in Phramacy"
+  ) %>% 
+  # Add layers control (toggle and radio)
+  addLayersControl(
+    baseGroups = c("OpenStreetMap", "Satellite"),
+    overlayGroups = c("Pharmacies - Staf by SEX"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) %>%
+  addFullscreenControl()
+
 ```
 
