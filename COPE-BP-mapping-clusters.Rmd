@@ -383,7 +383,21 @@ leaflet() %>%
 
 ```
 
+```{r bg_save_geospatial_data, include=FALSE}
 
+#st_write(bd_wards, "survey-data/bd-wards-reported-clients.geojson", driver = "GeoJSON")
+#st_write(bd_pharm_single_area, "survey-data/bd-pharmacies-single-area-reported.geojson", driver = "GeoJSON")
+#st_write(bd_pharm_multi_area, "survey-data/bd-pharmacies-multi-area-reported.geojson", driver = "GeoJSON")
+#st_write(bd_pharm_areas_arcs, "survey-data/bd-pharmacies-arcs-to-multi-area.geojson", driver = "GeoJSON")
+```
+
+```{r bg_export_all_pharmacies, include=FALSE}
+bd_all_pharmacies_layer <- bd_data_geo %>% 
+  select ("_id",  "pq_district", "pq_city", "pq_ward", "pharmacy_id", "pq_screen", "pq_ns_res", "pq_pharm_catg",
+          "pq_ns_visit_1", "pq_ns_visit_2", "pq_ns_type", "pq_ns_res_oth", "pq_scr_a", "pq_scr_b", "pq_scr_c", 
+          "pq_scr_c1", "pq_scr_d", "pq_non_eligible", "pq_eligible", "pharmacy_inclusion", "pq_consent")
+st_write(bd_all_pharmacies_layer, "survey-data/bd-all-pharmacies-geo.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+```
 
 
 
@@ -681,4 +695,21 @@ leaflet() %>%
   ) %>%
   addFullscreenControl()
 
+```
+
+
+```{r pk_save_geospatial_data, include=FALSE}
+
+#st_write(pk_uc, "survey-data/pk-uc-reported-clients.geojson", driver = "GeoJSON")
+#st_write(pk_pharm_single_area, "survey-data/pk-pharmacies-single-area-reported.geojson", driver = "GeoJSON")
+#st_write(pk_pharm_multi_area, "survey-data/pk-pharmacies-multi-area-reported.geojson", driver = "GeoJSON")
+#st_write(pk_pharm_areas_arcs, "survey-data/pk-pharmacies-arcs-to-multi-area.geojson", driver = "GeoJSON")
+```
+
+```{r pk_export_all_pharmacies, include=FALSE}
+pk_all_pharmacies_layer <- pk_data_geo %>% 
+  select ("_id",  "pq_district", "pq_city", "pq_ward", "pq_calc", "pharmacy_id", "pq_screen", "pq_ns_res", "pq_pharm_catg",
+          "pq_ns_visit_1", "pq_ns_visit_2", "pq_ns_type", "pq_ns_res_oth", "pq_scr_a", "pq_scr_b", "pq_scr_c", 
+          "pq_scr_c1", "pq_scr_d", "pq_non_eligible", "pq_eligible", "pharmacy_inclusion")
+st_write(pk_all_pharmacies_layer, "survey-data/pk-all-pharmacies-geo.geojson", driver = "GeoJSON")
 ```
