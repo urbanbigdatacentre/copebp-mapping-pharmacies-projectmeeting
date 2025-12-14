@@ -3,3 +3,4 @@ Survey-v2/
 .DS_Store
 .Rproj.user
 pharmacy-survey-repo.Rproj
+*.qmd
