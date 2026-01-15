@@ -7,6 +7,7 @@ The project displays multiple test resources that constantly change. For additio
 
  - [General maps for the project meeting 2025](COPE-BP-mapping.html)
  - [Descriptive cluster analysis for the project meting 2025](COPE-BP-mapping-clusters.html)
+ - [Distances between clusters for the project meting 2025](COPE-BP-cluster-analysis.html)
  - [Pharmacies reporting female members of staff for the project meting 2025](COPE-BP-mapping-clusters.html)
 
 This project is maintained by the [Urban Big Data Centre](https://www.ubdc.ac.uk)

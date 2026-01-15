@@ -1,0 +1,192 @@
+---
+title: "COPE-BP Annual Meeting - WP1 cluster analysis"
+author: "Diego Pajarito"
+date: "2025-12-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## COPE-BP Mapping Clusters Markdown document
+
+This R Markdown document is designed for sharing resources at the Annual meeting and contain analysis of fieldwork and survey data prepared within the WP1.
+
+This document is automatically generated using the option **Knit** within an R-Markdown file. Therefore some content might not display correctly. Please contact the [Diego Pajarito Grajales](mailto:Diego.PajaritoGrajales@glasgow.ac.uk) for any additional requirement.
+
+### Initial setup
+
+The workflow uses different libraries such as **haven** and **readxl** for data management as well as [sf](https://r-spatial.github.io/sf/), **dplyr** and [leaflet](https://leafletjs.com) for geospatial data management.
+
+```{r packages, include=FALSE}
+# This is only needed once and in environments where the packages are not available
+#install.packages("haven") # Required to process data files
+#install.packages("readxl") # Required to process excell file
+#install.packages("leaflet.extras")
+```
+
+```{r libraries, include=FALSE}
+library(haven)
+library(readxl)
+library(readr)
+library(sf)
+library(leaflet)
+library(leaflet.extras)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+```
+
+
+
+```{r read_data, include=FALSE}
+# Bangladesh
+bd_dhaka_distances <- read_csv("cluster-analysis/bd-dhaka-distance-matrix-pharmacies.csv")
+bd_dhaka_clusters <- st_read("survey-data/bd-dhaka-kmeans-clustered-pharmacies.geojson")
+bd_narsingdi_distances <- read_csv("cluster-analysis/bd-narsingdi-distance-matrix-pharmacies.csv")
+bd_narsingdi_clusters <- st_read("survey-data/bd-narsingdi-kmeans-clustered-pharmacies.geojson")
+
+# Pakistan
+pk_abbottabad_distances <- read_csv("cluster-analysis/pk-abbottabad-distance-matrix-pharmacies.csv")
+bk_abbottabad_clusters <- st_read("survey-data/pk-abbottabad-kmeans-clustered-pharmacies.geojson")
+pk_peshawar_distances <- read_csv("cluster-analysis/pk-peshawar-distance-matrix-pharmacies.csv")
+pk_peshawar_clusters <- st_read("survey-data/pk-peshawar-kmeans-clustered-pharmacies.geojson")
+
+```
+
+
+
+## Finding the average distance
+
+Data inputs are:
+ - the distance matrix (one per city) between the pharmacies. This is expressed in meters.
+ - the clusters defined 
+ 
+The analysis consists on grouping pharmacies (start, end) to their respective clusters and calculate the average distance between pharmacies in the same cluster.
+
+
+
+```{r merge_pharmacies_clusters, include=FALSE}
+bd_dhaka_cluster_ids <- bd_dhaka_clusters %>% 
+  select("X_id", "CLUSTER_ID") %>% 
+  st_drop_geometry() 
+bd_narsingdi_cluster_ids <- bd_narsingdi_clusters %>% 
+  select("X_id", "CLUSTER_ID") %>% 
+  st_drop_geometry() 
+
+pk_abbottabad_cluster_ids <- bk_abbottabad_clusters %>% 
+  select("X_id", "CLUSTER_ID") %>% 
+  st_drop_geometry() 
+pk_peshawar_cluster_ids <- pk_peshawar_clusters %>% 
+  select("X_id", "CLUSTER_ID") %>% 
+  st_drop_geometry() 
+```
+
+
+```{r rename_columns_pharmacies_clusters, include=FALSE}
+bd_dhaka_distances <- bd_dhaka_distances %>% mutate(InputID = as.character(InputID)) %>% mutate(TargetID = as.character(TargetID))
+bd_narsingdi_distances <- bd_narsingdi_distances %>% mutate(InputID = as.character(InputID)) %>% mutate(TargetID = as.character(TargetID))
+
+pk_abbottabad_distances <- pk_abbottabad_distances %>% mutate(InputID = as.character(InputID)) %>% mutate(TargetID = as.character(TargetID))
+pk_peshawar_distances <- pk_peshawar_distances %>% mutate(InputID = as.character(InputID)) %>% mutate(TargetID = as.character(TargetID))
+```
+
+
+```{r rename_ids_pharmacies_clusters, include=FALSE}
+bd_dhaka_distances <- bd_dhaka_distances %>% 
+  left_join(bd_dhaka_cluster_ids, by = join_by("InputID" == "X_id")) %>% 
+  rename(InputCluster = CLUSTER_ID) %>% 
+  left_join(bd_dhaka_cluster_ids, by = join_by("TargetID" == "X_id")) %>% 
+  rename(TargetCluster = CLUSTER_ID)
+bd_narsingdi_distances <- bd_narsingdi_distances %>% 
+  left_join(bd_narsingdi_cluster_ids, by = join_by("InputID" == "X_id")) %>% 
+  rename(InputCluster = CLUSTER_ID) %>% 
+  left_join(bd_narsingdi_cluster_ids, by = join_by("TargetID" == "X_id")) %>% 
+  rename(TargetCluster = CLUSTER_ID)
+
+pk_abbottabad_distances <- pk_abbottabad_distances %>% 
+  left_join(pk_abbottabad_cluster_ids, by = join_by("InputID" == "X_id")) %>% 
+  rename(InputCluster = CLUSTER_ID) %>% 
+  left_join(pk_abbottabad_cluster_ids, by = join_by("TargetID" == "X_id")) %>% 
+  rename(TargetCluster = CLUSTER_ID)
+pk_peshawar_distances <- pk_peshawar_distances %>% 
+  left_join(pk_peshawar_cluster_ids, by = join_by("InputID" == "X_id")) %>% 
+  rename(InputCluster = CLUSTER_ID) %>% 
+  left_join(pk_peshawar_cluster_ids, by = join_by("TargetID" == "X_id")) %>% 
+  rename(TargetCluster = CLUSTER_ID)
+```
+
+
+```{r summary_distances, include=FALSE}
+bd_dhaka_summary_cluters <- bd_dhaka_distances %>% 
+  filter(InputCluster == TargetCluster) %>% 
+  group_by(InputCluster)%>% 
+  summarise(mean_value = mean(Distance, na.rm = TRUE))
+bd_narsingdi_summary_cluters <- bd_narsingdi_distances %>% 
+  filter(InputCluster == TargetCluster) %>% 
+  group_by(InputCluster)%>% 
+  summarise(mean_value = mean(Distance, na.rm = TRUE))
+
+pk_abbottabad_summary_cluters <- pk_abbottabad_distances %>% 
+  filter(InputCluster == TargetCluster) %>% 
+  group_by(InputCluster)%>% 
+  summarise(mean_value = mean(Distance, na.rm = TRUE))
+pk_peshawar_summary_cluters <- pk_peshawar_distances %>% 
+  filter(InputCluster == TargetCluster) %>% 
+  group_by(InputCluster)%>% 
+  summarise(mean_value = mean(Distance, na.rm = TRUE))
+```
+
+-- **Bangladesh Pharmacies**
+
+--- **Pharmacy Clusters Dhaka**
+```{r plot_bg_d, echo=FALSE}
+ggplot(bd_dhaka_summary_cluters, aes(as.factor(InputCluster), mean_value,)) +
+  geom_col() +
+  labs( title = "BD Dhaka - Average distance between pharmacies")+
+  xlab("Cluster ID") +
+  ylab("Metres") +
+  theme_minimal()
+```
+
+--- **Pharmacy Clusters Narsingdi**
+```{r plot_bg_n, echo=FALSE}
+ggplot(bd_narsingdi_summary_cluters, aes(as.factor(InputCluster), mean_value,)) +
+  geom_col() +
+  labs( title = "BD Narsingdi - Average distance between pharmacies")+
+  xlab("Cluster ID") +
+  ylab("Metres") +
+  theme_minimal()
+```
+
+
+
+
+
+-- **Pakistan Pharmacies**
+
+--- **Pharmacy Clusters Dhaka**
+```{r plot_pk_a, echo=FALSE}
+ggplot(pk_abbottabad_summary_cluters, aes(as.factor(InputCluster), mean_value,)) +
+  geom_col() +
+  labs( title = "PK Abbottabad - Average distance between pharmacies")+
+  xlab("Cluster ID") +
+  ylab("Metres") +
+  theme_minimal()
+```
+
+--- **Pharmacy Clusters Narsingdi**
+```{r plot_pk_p, echo=FALSE}
+ggplot(pk_peshawar_summary_cluters, aes(as.factor(InputCluster), mean_value,)) +
+  geom_col() +
+  labs( title = "PK Peshawar - Average distance between pharmacies")+
+  xlab("Cluster ID") +
+  ylab("Metres") +
+  theme_minimal()
+```
+
+
+
+
