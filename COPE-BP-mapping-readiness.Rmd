@@ -1,0 +1,94 @@
+---
+title: "COPE-BP Annual Meeting - WP1 mapping readiness"
+author: "Diego Pajarito"
+date: "2025-12-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## COPE-BP Mapping Readiness Markdown document
+
+This R Markdown document is designed for sharing resources at the Annual meeting and contain analysis of fieldwork and survey data prepared within the WP1.
+
+This document is automatically generated using the option **Knit** within an R-Markdown file. Therefore some content might not display correctly. Please contact the [Diego Pajarito Grajales](mailto:Diego.PajaritoGrajales@glasgow.ac.uk) for any additional requirement.
+
+### Initial setup
+
+The workflow uses different libraries such as **haven** and **readxl** for data management as well as [sf](https://r-spatial.github.io/sf/), **dplyr** and [leaflet](https://leafletjs.com) for geospatial data management.
+
+```{r packages, include=FALSE}
+# This is only needed once and in environments where the packages are not available
+#install.packages("haven") # Required to process data files
+#install.packages("readxl") # Required to process excell file
+#install.packages("leaflet.extras")
+```
+
+```{r libraries, include=FALSE}
+library(haven)
+library(readxl)
+library(sf)
+library(leaflet)
+library(leaflet.extras)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+```
+
+
+
+```{r read_data, include=FALSE}
+pk_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_PK_PCQ.dta")
+
+# For Bangladesh, at the moment, geospatial data is not integrated due to some missing values for location
+bd_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_BD_PCQ.dta")
+bd_data_geo <- read_excel("Survey-v2/02_PCS/03_database/01_preload/pk_pharmacy_list.xlsx", sheet="Bangladesh Pharmacy Data")
+```
+
+
+```{r set_geometry, include=FALSE}
+# First we need to add geometries to the data set. We use the values in coordinates stored as columns.
+# This uses a full join to only treat the data with known location
+
+bd_data_geo <- merge(bd_data, bd_data_geo, by.x = "_id", by.y = "_id")
+
+bd_data_geo <- bd_data_geo %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+pk_data_geo <- pk_data %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+```
+
+## Initial analysis of Pharmacy Readiness for intervention
+
+Based on the discussions about the conditions for intervention in different pharmacies, 
+
+
+-  Space available for counselling
+  - pq_h_coun_spc
+-  24-hour electricity access
+  - pq_pd_refrige_elct
+-  Availability of a refrigerator
+  - pq_pd_refrige
+  - pq_pd_refrige_n
+  - pq_pd_refrige_elct
+  - pq_pd_refrige_back
+-  Internet connectivity
+  - pq_pd_interne
+-  More opening days per week, etc
+  - pq_pd_day
+
+
+Output:
+An ordered table for pharmacies that are eligible and have the majority of factors to be considered for readines
+
+A map with coloured categories depending on the number of conditions met
+
