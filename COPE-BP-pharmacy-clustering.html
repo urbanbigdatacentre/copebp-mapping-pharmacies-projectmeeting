@@ -381,7 +381,7 @@ datasets, and the distance matrices estimated for every city.</p>
 <p>To process the clusters, the team has decided to apply the following
 criteria:</p>
 <ul>
-<li>Each city will have 11 clusters.</li>
+<li>Each city will have 9 clusters.</li>
 <li>Pharmacies will be clustered based on their geographic
 distribution.</li>
 <li>The method selected is K-means</li>
@@ -404,17 +404,17 @@ the closest cluster</p>
 <pre><code>## Deleting source `./clustered-pharmacies/bd_dhaka_hull.geojson&#39; using driver `GeoJSON&#39;
 ## Writing layer `bd_dhaka_hull.geojson&#39; to data source 
 ##   `./clustered-pharmacies/bd_dhaka_hull.geojson&#39; using driver `GeoJSON&#39;
-## Writing 9 features with 13 fields and geometry type Polygon.</code></pre>
+## Writing 11 features with 13 fields and geometry type Polygon.</code></pre>
 <pre class="r"><code>sf::st_write(bd_narsi_hull, dsn = &quot;./clustered-pharmacies/bd_narsi_hull.geojson&quot;, layer = &quot;bd_narsi_hull.geojson&quot;, append = FALSE, delete_dsn = TRUE)</code></pre>
 <pre><code>## Deleting source `./clustered-pharmacies/bd_narsi_hull.geojson&#39; using driver `GeoJSON&#39;
 ## Writing layer `bd_narsi_hull.geojson&#39; to data source 
 ##   `./clustered-pharmacies/bd_narsi_hull.geojson&#39; using driver `GeoJSON&#39;
-## Writing 9 features with 13 fields and geometry type Polygon.</code></pre>
+## Writing 11 features with 13 fields and geometry type Polygon.</code></pre>
 <pre class="r"><code>sf::st_write(pk_pesha_hull, dsn = &quot;./clustered-pharmacies/pk_pesha_hull.geojson&quot;, layer = &quot;pk_pesha_hull.geojson&quot;, append = FALSE, delete_dsn = TRUE)</code></pre>
 <pre><code>## Deleting source `./clustered-pharmacies/pk_pesha_hull.geojson&#39; using driver `GeoJSON&#39;
 ## Writing layer `pk_pesha_hull.geojson&#39; to data source 
 ##   `./clustered-pharmacies/pk_pesha_hull.geojson&#39; using driver `GeoJSON&#39;
-## Writing 9 features with 13 fields and geometry type Polygon.</code></pre>
+## Writing 11 features with 13 fields and geometry type Polygon.</code></pre>
 <pre><code>## Warning in CPL_write_ogr(obj, dsn, layer, driver,
 ## as.character(dataset_options), : GDAL Message 1: NaN of Infinity value found.
 ## Skipped</code></pre>
@@ -422,7 +422,7 @@ the closest cluster</p>
 <pre><code>## Deleting source `./clustered-pharmacies/pk_abbot_hull.geojson&#39; using driver `GeoJSON&#39;
 ## Writing layer `pk_abbot_hull.geojson&#39; to data source 
 ##   `./clustered-pharmacies/pk_abbot_hull.geojson&#39; using driver `GeoJSON&#39;
-## Writing 9 features with 13 fields and geometry type Polygon.</code></pre>
+## Writing 11 features with 13 fields and geometry type Polygon.</code></pre>
 </div>
 </div>
 
