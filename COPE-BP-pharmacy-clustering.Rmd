@@ -1,0 +1,351 @@
+---
+title: "COPE-BP Annual Meeting - WP1 feasibility clusters"
+author: "Diego Pajarito"
+date: "2026-01-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## COPE-BP Clustering Feasibility
+
+This R Markdown document compiles the process cluster pharmacies for the feasibility phase. It is based on the agreements of the annual meeting and further analysis within the WP1 and WP2 teams.
+
+This document is automatically generated using the option **Knit** within an R-Markdown file. Therefore some content might not display correctly. Please contact the [Diego Pajarito Grajales](mailto:Diego.PajaritoGrajales@glasgow.ac.uk) for any additional requirement.
+
+### Initial setup
+
+The workflow uses different libraries such as **haven** and **readxl** for data management as well as [sf](https://r-spatial.github.io/sf/), **dplyr** and [leaflet](https://leafletjs.com) for geospatial data management.
+
+```{r packages, include=FALSE}
+# This is only needed once and in environments where the packages are not available
+#install.packages("haven") # Required to process data files
+#install.packages("readxl") # Required to process excell file
+#install.packages("leaflet.extras")
+```
+
+```{r libraries, include=FALSE}
+library(haven)
+library(readxl)
+library(readr)
+library(sf)
+library(leaflet)
+library(leaflet.extras)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+
+# Libraries used to set up clusters
+library(sf)
+library(dplyr)
+```
+
+
+The datasets used are the survey data, transformed into geospatial datasets, and the distance matrices estimated for every city.
+
+
+```{r read_survey_data, include=FALSE}
+pk_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_PK_PCQ.dta")
+
+# For Bangladesh, at the moment, geospatial data is not integrated due to some missing values for location
+bd_data <- read_dta("Survey-v2/02_PCS/03_database/04_cleandata/COPE-BP_BD_PCQ.dta")
+bd_data_geo <- read_excel("Survey-v2/02_PCS/03_database/01_preload/pk_pharmacy_list.xlsx", sheet="Bangladesh Pharmacy Data")
+```
+
+
+
+```{r set_geometry_to_survey, include=FALSE}
+# First we need to add geometries to the data set. We use the values in coordinates stored as columns.
+# This uses a full join to only treat the data with known location
+
+pk_data_geo <- pk_data %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+bd_data_geo <- merge(bd_data, bd_data_geo, by.x = "_id", by.y = "_id")
+
+bd_data_geo <- bd_data_geo %>%
+  st_as_sf(coords = c("_location_longitude", "_location_latitude"), 
+           crs = 4326,
+           remove = FALSE)  # Keeps original columns
+
+
+```
+
+
+
+```{r read_distance_matrix, include=FALSE}
+# Bangladesh
+bd_dhaka_distances <- read_csv("cluster-analysis/bd-dhaka-distance-matrix-pharmacies.csv")
+bd_narsingdi_distances <- read_csv("cluster-analysis/bd-narsingdi-distance-matrix-pharmacies.csv")
+
+# Pakistan
+pk_abbottabad_distances <- read_csv("cluster-analysis/pk-abbottabad-distance-matrix-pharmacies.csv")
+pk_peshawar_distances <- read_csv("cluster-analysis/pk-peshawar-distance-matrix-pharmacies.csv")
+
+```
+
+### Clustering 
+
+To process the clusters, the team has decided to apply the following criteria:
+
+- Each city will have 11 clusters. 
+- Pharmacies will be clustered based on their geographic distribution.
+- The method selected is K-means
+- Consideration of pharmacies close to hospitals is omitted due difficulties such as:
+  a) Pharmacies-to-hospital proximity usually smaller than 1km.
+  b) Hospitals driving patients or pharmacy customers are not clearly defined. 
+- Allow for identification of pharmacies reporting female staff members
+
+Once the clusters are estimated, there will be a description that includes:
+- pharmacy count
+- count of pharmacies reporting female staff members
+- average distance to the nearest hospital
+- added footfall for all the pharmacies in the cluster (arithmetic addition)
+- distance to the closest cluster
+
+
+
+
+```{r variables_to_include, include=FALSE}
+  
+# Initial selection of variables to include
+pk_data_geo <- pk_data_geo %>% select("_id", "pq_city", "pq_ward", ends_with("sex"), "pq_c_daily_cus", "geometry") 
+bd_data_geo <- bd_data_geo %>% filter(pq_consent ==1) %>% # for Bangladesh there's need to filter eligible pharmacies only
+  select("_id", "pq_city", "pq_ward", ends_with("sex"), "pq_c_daily_cus", "geometry")
+
+
+# There are some estimates to derive the male/female staff reported
+pk_data_geo <- pk_data_geo %>% 
+  mutate(count_female = rowSums(across(ends_with("sex")) == 2, na.rm = TRUE)) %>% 
+  mutate(count_male = rowSums(across(ends_with("sex")) == 1, na.rm = TRUE))
+bd_data_geo <- bd_data_geo %>% 
+  mutate(count_female = rowSums(across(ends_with("sex")) == 2, na.rm = TRUE)) %>% 
+  mutate(count_male = rowSums(across(ends_with("sex")) == 1, na.rm = TRUE))
+
+# Variables carried out
+pk_data_geo <- pk_data_geo %>% select("_id", "pq_city", "pq_ward", "count_female", "count_male", "pq_c_daily_cus", "geometry")
+bd_data_geo <- bd_data_geo %>% select("_id", "pq_city", "pq_ward", "count_female", "count_male", "pq_c_daily_cus", "geometry")
+
+
+```
+
+
+```{r set_crs, include=FALSE}
+
+# CRS is set; if missing, data comes in WGS84. Later data is projecte do local UTM
+if (is.na(sf::st_crs(pk_data_geo))) {
+  warning("CRS missing; assuming WGS84 (EPSG:4326). Adjust if different.")
+  sf::st_crs(pk_data_geo) <- 4326
+}
+if (is.na(sf::st_crs(bd_data_geo))) {
+  warning("CRS missing; assuming WGS84 (EPSG:4326). Adjust if different.")
+  sf::st_crs(bd_data_geo) <- 4326
+}
+
+pk_data_utm <- sf::st_transform(pk_data_geo, 32642)
+bd_data_utm <- sf::st_transform(bd_data_geo, 32642)
+
+```
+
+```{r prepare_city_subsets, include=FALSE}
+
+# Prepare individual data sets per city
+# 1, Dhaka North City Corporation (DNCC) | 2, Dhaka South City Corporation (DSCC) | 3, Narsingdi Paurashava | 4, Ghorashal Paurashava
+bd_dhaka_data <- bd_data_utm[bd_data_utm$pq_city == 1 | bd_data_utm$pq_city == 2, ]
+bd_narsi_data <- bd_data_utm[bd_data_utm$pq_city == 3 | bd_data_utm$pq_city == 4, ]
+
+# 1, Peshawar | 2, Abbottabad 
+pk_pesha_data <- pk_data_utm[pk_data_utm$pq_city == 1, ]
+pk_abbot_data <- pk_data_utm[pk_data_utm$pq_city == 2, ]
+
+```
+
+```{r extract_coods, include=FALSE}
+# Extract planar coordinates (in meters) 
+bd_dhaka_coords <- sf::st_coordinates(bd_dhaka_data)
+bd_narsi_coords <- sf::st_coordinates(bd_narsi_data)
+
+pk_pesha_coords <- sf::st_coordinates(pk_pesha_data)
+pk_abbot_coords <- sf::st_coordinates(pk_abbot_data)
+
+# Check missing/invalid geometries
+bd_dhaka_valid_idx <- stats::complete.cases(bd_dhaka_coords[, 1], bd_dhaka_coords[, 2]) & !is.na(sf::st_is_valid(bd_dhaka_data))
+bd_dhaka_coords_valid <- bd_dhaka_coords[bd_dhaka_valid_idx, , drop = FALSE]
+bd_narsi_valid_idx <- stats::complete.cases(bd_narsi_coords[, 1], bd_narsi_coords[, 2]) & !is.na(sf::st_is_valid(bd_narsi_data))
+bd_narsi_coords_valid <- bd_narsi_coords[bd_narsi_valid_idx, , drop = FALSE]
+
+pk_pesha_valid_idx <- stats::complete.cases(pk_pesha_coords[, 1], pk_pesha_coords[, 2]) & !is.na(sf::st_is_valid(pk_pesha_data))
+pk_pesha_coords_valid <- pk_pesha_coords[pk_pesha_valid_idx, , drop = FALSE]
+pk_abbot_valid_idx <- stats::complete.cases(pk_abbot_coords[, 1], pk_abbot_coords[, 2]) & !is.na(sf::st_is_valid(pk_abbot_data))
+pk_abbot_coords_valid <- pk_abbot_coords[pk_abbot_valid_idx, , drop = FALSE]
+```
+
+
+
+
+```{r estimate_kmeans, include=FALSE}
+
+# Run k-means to create 11 clusters
+set.seed(42)  # for reproducibility
+k <- 9
+
+
+bd_dhaka_km <- kmeans(bd_dhaka_coords_valid, centers = k, nstart = 25, iter.max = 100)
+bd_narsi_km <- kmeans(bd_narsi_coords_valid, centers = k, nstart = 25, iter.max = 100)
+pk_pesha_km <- kmeans(pk_pesha_coords_valid, centers = k, nstart = 25, iter.max = 100)
+pk_abbot_km <- kmeans(pk_abbot_coords_valid, centers = k, nstart = 25, iter.max = 100)
+
+
+```
+
+
+```{r asign_cluster_labels, include=FALSE}
+
+# Map cluster labels back (keeping original row order)
+bd_dhaka_cluster_col <- rep(NA_integer_, nrow(bd_dhaka_data))
+bd_dhaka_cluster_col[bd_dhaka_valid_idx] <- bd_dhaka_km$cluster
+
+bd_narsi_cluster_col <- rep(NA_integer_, nrow(bd_narsi_data))
+bd_narsi_cluster_col[bd_narsi_valid_idx] <- bd_narsi_km$cluster
+
+pk_pesha_cluster_col <- rep(NA_integer_, nrow(pk_pesha_data))
+pk_pesha_cluster_col[pk_pesha_valid_idx] <- pk_pesha_km$cluster
+
+pk_abbot_cluster_col <- rep(NA_integer_, nrow(pk_abbot_data))
+pk_abbot_cluster_col[pk_abbot_valid_idx] <- pk_abbot_km$cluster
+
+# Append as a new column, return to original CRS (optional)
+bd_dhaka_clustered <- bd_dhaka_data |>
+  dplyr::mutate(cluster_id =bd_dhaka_cluster_col) |>
+  sf::st_transform(sf::st_crs(bd_data_geo))  
+
+bd_narsi_clustered <- bd_narsi_data |>
+  dplyr::mutate(cluster_id =bd_narsi_cluster_col) |>
+  sf::st_transform(sf::st_crs(bd_data_geo))  
+
+pk_pesha_clustered <- pk_pesha_data |>
+  dplyr::mutate(cluster_id = pk_pesha_cluster_col) |>
+  sf::st_transform(sf::st_crs(pk_data_geo)) 
+
+pk_abbot_clustered <- pk_abbot_data |>
+  dplyr::mutate(cluster_id = pk_abbot_cluster_col) |>
+  sf::st_transform(sf::st_crs(pk_data_geo))
+
+```
+
+
+```{r save_clustered_pharmacies_layer, include=FALSE}
+sf::st_write(bd_dhaka_clustered, dsn = "./clustered-pharmacies/bd_dhaka_clustered.geojson", layer = "bd_dhaka_clustered.geojson", append = FALSE, delete_dsn = TRUE)
+sf::st_write(bd_narsi_clustered, dsn = "./clustered-pharmacies/bd_narsi_clustered.geojson", layer = "bd_narsi_clustered.geojson", append = FALSE, delete_dsn = TRUE)
+
+sf::st_write(pk_pesha_clustered, dsn = "./clustered-pharmacies/pk_pesha_clustered.geojson", layer = "pk_pesha_clustered.geojson", append = FALSE, delete_dsn = TRUE)
+sf::st_write(pk_abbot_clustered, dsn = "./clustered-pharmacies/pk_abbot_clustered.geojson", layer = "pk_abbot_clustered.geojson", append = FALSE, delete_dsn = TRUE)
+
+
+```
+
+
+
+```{r function_convex_hull, include=FALSE}
+
+build_convex_hulls <- function(gdf, group_col, value_cols = NULL) {
+  
+  hull_sf <- gdf |>
+    group_by(across(all_of(group_col))) |>
+    summarise(
+      point_count = n(),
+      across(all_of(value_cols), list(
+        sum  = ~ sum(.x,  na.rm = TRUE),
+        count = ~ sum(!is.na(.x)),
+        mean = ~ max(.x, na.rm = TRUE)
+      )),
+      geometry = st_convex_hull(st_combine(geometry)),
+      .groups = "drop"
+    ) |>
+    st_as_sf()
+  
+  return(hull_sf)
+}
+
+```
+
+
+```{r estimate_distance_between_clusters, include=FALSE}
+
+add_nearest_distance <- function(hull_sf, group_col) {
+  # to estimate distances in metres, a project CRC is needed
+  hull_sf <- sf::st_transform(hull_sf, 32642)
+  
+  # Compute full distance matrix (polygon boundary to boundary)
+  dist_matrix <- st_distance(hull_sf)
+  diag(dist_matrix) <- NA  # ignore self-distance
+  
+  hull_sf <- hull_sf |>
+    mutate(
+      nearest_idx      = apply(dist_matrix, 1, which.min),
+      nearest_group    = hull_sf[[group_col]][nearest_idx],
+      nearest_distance = apply(dist_matrix, 1, min, na.rm = TRUE)
+    ) |>
+    select(-nearest_idx)
+  
+  # the final dataset is converted into WGS 84 CRS for compatibility
+  hull_sf <- sf::st_transform(hull_sf, 4326)
+  
+  return(hull_sf)
+}
+```
+
+```{r generate_convex_hull, include=FALSE}
+
+cols = c("count_female", "count_male", "pq_c_daily_cus")   # ← replace with your actual column name(s)
+
+bd_dhaka_hull <- build_convex_hulls(
+  bd_dhaka_clustered,
+  group_col  = "cluster_id",
+  value_cols = cols
+)
+bd_dhaka_hull <- add_nearest_distance(bd_dhaka_hull, group_col = "cluster_id")
+
+bd_narsi_hull <- build_convex_hulls(
+  bd_narsi_clustered,
+  group_col  = "cluster_id",
+  value_cols = cols
+)
+bd_narsi_hull <- add_nearest_distance(bd_narsi_hull, group_col = "cluster_id")
+
+pk_pesha_hull <- build_convex_hulls(
+  pk_pesha_clustered,
+  group_col  = "cluster_id",
+  value_cols = cols
+)
+pk_pesha_hull <- add_nearest_distance(pk_pesha_hull, group_col = "cluster_id")
+
+pk_abbot_hull <- build_convex_hulls(
+  pk_abbot_clustered,
+  group_col  = "cluster_id",
+  value_cols = cols
+)
+pk_abbot_hull <- add_nearest_distance(pk_abbot_hull, group_col = "cluster_id")
+
+
+```
+
+
+
+```{r save_summary_convex, include=TRUE}
+
+sf::st_write(bd_dhaka_hull, dsn = "./clustered-pharmacies/bd_dhaka_hull.geojson", layer = "bd_dhaka_hull.geojson", append = FALSE, delete_dsn = TRUE)
+sf::st_write(bd_narsi_hull, dsn = "./clustered-pharmacies/bd_narsi_hull.geojson", layer = "bd_narsi_hull.geojson", append = FALSE, delete_dsn = TRUE)
+
+sf::st_write(pk_pesha_hull, dsn = "./clustered-pharmacies/pk_pesha_hull.geojson", layer = "pk_pesha_hull.geojson", append = FALSE, delete_dsn = TRUE)
+sf::st_write(pk_abbot_hull, dsn = "./clustered-pharmacies/pk_abbot_hull.geojson", layer = "pk_abbot_hull.geojson", append = FALSE, delete_dsn = TRUE)
+
+```
+
+
+
