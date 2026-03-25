@@ -95,7 +95,7 @@ pk_peshawar_distances <- read_csv("cluster-analysis/pk-peshawar-distance-matrix-
 
 To process the clusters, the team has decided to apply the following criteria:
 
-- Each city will have 9 clusters. 
+- Each city will have 11 clusters. 
 - Pharmacies will be clustered based on their geographic distribution.
 - The method selected is K-means
 - Consideration of pharmacies close to hospitals is omitted due difficulties such as:
@@ -339,7 +339,7 @@ pk_abbot_hull <- add_nearest_distance(pk_abbot_hull, group_col = "cluster_id")
 
 
 
-```{r save_summary_convex, include=TRUE}
+```{r save_summary_convex, include=FALSE}
 
 sf::st_write(bd_dhaka_hull, dsn = "./clustered-pharmacies/bd_dhaka_hull.geojson", layer = "bd_dhaka_hull.geojson", append = FALSE, delete_dsn = TRUE)
 sf::st_write(bd_narsi_hull, dsn = "./clustered-pharmacies/bd_narsi_hull.geojson", layer = "bd_narsi_hull.geojson", append = FALSE, delete_dsn = TRUE)
@@ -351,7 +351,6 @@ sf::st_write(pk_abbot_hull, dsn = "./clustered-pharmacies/pk_abbot_hull.geojson"
 
 
 # Cluster maps for cities
-
 
 
 ```{r map_function, include=FALSE}
@@ -404,38 +403,64 @@ build_cluster_map <- function(gdf_clustered, hull_sf, group_col = "cluster_id") 
       title    = "Cluster"
     ) |>
     addLayersControl(
-      overlayGroups = c("Convex Hulls", "Clustered Points"),
+      overlayGroups = c("Cluster Boundaries", "Clustered Points"),
       options       = layersControlOptions(collapsed = FALSE)
     )
 }
 
 ```
 
+## Bangladesh
 
-Dhaka
+### Dhaka
 
-```{r map_Dhaka, include=TRUE}
+```{r map_Dhaka, include=TRUE, warning=FALSE}
 map_bg_dhaka <- build_cluster_map(bd_dhaka_clustered, bd_dhaka_hull, group_col = "cluster_id")
 map_bg_dhaka
 ```
 
+### Narsingdi
 
-The pharmacies will need to have an estimate the distance between each pharmacy and the closest pharmacy from the closest cluster.
-This is to inform colleagues on how that distance can serve to the 
+```{r map_Narsingdi, include=TRUE, warning=FALSE}
+map_bg_narsi <- build_cluster_map(bd_narsi_clustered, bd_narsi_hull, group_col = "cluster_id")
+map_bg_narsi
+```
 
-Pharmacy
-id, distance to closest cluster, 
+## Pakistan
 
-Link to the Distance Matrix
+### Abbottabad
 
-PDF Maps with visuals for the clusters 
+```{r map_Abbottabad, include=TRUE, warning=FALSE}
+map_pk_abbot <- build_cluster_map(pk_abbot_clustered, pk_abbot_hull, group_col = "cluster_id")
+map_pk_abbot
+```
+
+### Peshawar
+
+```{r map_Peshawar, include=TRUE, warning=FALSE}
+map_pk_pesha <- build_cluster_map(pk_pesha_clustered, pk_pesha_hull, group_col = "cluster_id")
+map_pk_pesha
+```
+
+
+
+# Notes for reflection - 25 March 2026
+
+Some considerations were about distance between pharmacies and clusters. 
+These can be used on the randomisation process, so they can be considered to avoid in selection.
+
+There are distance matrix files that can allow quick review of distance between pharmacies based on ID.
+
+Folder [cluster-analysis]('./cluster-analysis')
+Distance Matrix for Pakistan - Peshawar'./cluster-analysis/pk-peshawar-distance-matrix-pharmacies.csv')
+Distance Matrix for Pakistan - Peshawar'./cluster-analysis/pk-peshawar-distance-matrix-pharmacies.csv')
 
 
 
 TO-DO: 
-Receive the ID pharmacies for potential Action Research
+Receive the ID pharmacies for potential Action Research. The in country teams will share.
 
-Visualize the location of these pharmacies and how this is distributed around 
+Map to visualize the location of selected pharmacies, its distribution and share with the team to identify potential impacts for cluster distribution. 
 
 
 
