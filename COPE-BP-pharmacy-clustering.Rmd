@@ -30,13 +30,15 @@ The workflow uses different libraries such as **haven** and **readxl** for data 
 library(haven)
 library(readxl)
 library(readr)
-library(sf)
-library(leaflet)
-library(leaflet.extras)
-library(dplyr)
+
 library(tidyr)
 library(ggplot2)
 library(stringr)
+
+# Libraries used for web mapping 
+library(RColorBrewer)
+library(leaflet)
+library(leaflet.extras)
 
 # Libraries used to set up clusters
 library(sf)
@@ -346,6 +348,95 @@ sf::st_write(pk_pesha_hull, dsn = "./clustered-pharmacies/pk_pesha_hull.geojson"
 sf::st_write(pk_abbot_hull, dsn = "./clustered-pharmacies/pk_abbot_hull.geojson", layer = "pk_abbot_hull.geojson", append = FALSE, delete_dsn = TRUE)
 
 ```
+
+
+# Cluster maps for cities
+
+
+
+```{r map_function, include=FALSE}
+
+build_cluster_map <- function(gdf_clustered, hull_sf, group_col = "cluster_id") {
+  
+  gdf_wgs  <- st_transform(gdf_clustered, 4326)
+  hull_wgs <- st_transform(hull_sf, 4326)
+  
+  n   <- length(unique(gdf_wgs[[group_col]]))
+  pal <- colorFactor(
+    palette = brewer.pal(max(3, n), "Set1"),
+    domain  = gdf_wgs[[group_col]]
+  )
+  
+  coords       <- st_coordinates(gdf_wgs)
+  gdf_wgs$lon  <- coords[, 1]
+  gdf_wgs$lat  <- coords[, 2]
+  
+  leaflet() |>
+    addProviderTiles(providers$CartoDB.Positron) |>
+    addPolygons(
+      data        = hull_wgs,
+      group       = "Cluster Boundaries",
+      fillColor   = ~ pal(hull_wgs[[group_col]]),
+      fillOpacity = 0.15,
+      color       = ~ pal(hull_wgs[[group_col]]),
+      weight      = 2,
+      label       = ~ lapply(paste0(
+        "<b>Cluster:</b> ",         hull_wgs[[group_col]],  "<br>",
+        "<b>Nearest distance:</b> ", round(nearest_distance, 0), "<br>",
+        "<b>Point count:</b> ",      point_count
+      ), htmltools::HTML)
+    ) |>
+    addCircleMarkers(
+      data        = gdf_wgs,
+      group       = "Clustered Points",
+      lng         = ~ lon,
+      lat         = ~ lat,
+      radius      = 5,
+      color       = ~ pal(gdf_wgs[[group_col]]),
+      fillColor   = ~ pal(gdf_wgs[[group_col]]),
+      fillOpacity = 0.8,
+      weight      = 1
+    ) |>
+    addLegend(
+      position = "bottomright",
+      pal      = pal,
+      values   = gdf_wgs[[group_col]],
+      title    = "Cluster"
+    ) |>
+    addLayersControl(
+      overlayGroups = c("Convex Hulls", "Clustered Points"),
+      options       = layersControlOptions(collapsed = FALSE)
+    )
+}
+
+```
+
+
+Dhaka
+
+```{r map_Dhaka, include=TRUE}
+map_bg_dhaka <- build_cluster_map(bd_dhaka_clustered, bd_dhaka_hull, group_col = "cluster_id")
+map_bg_dhaka
+```
+
+
+The pharmacies will need to have an estimate the distance between each pharmacy and the closest pharmacy from the closest cluster.
+This is to inform colleagues on how that distance can serve to the 
+
+Pharmacy
+id, distance to closest cluster, 
+
+Link to the Distance Matrix
+
+PDF Maps with visuals for the clusters 
+
+
+
+TO-DO: 
+Receive the ID pharmacies for potential Action Research
+
+Visualize the location of these pharmacies and how this is distributed around 
+
 
 
 
