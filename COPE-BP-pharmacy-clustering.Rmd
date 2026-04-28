@@ -1,7 +1,7 @@
 ---
 title: "COPE-BP Analysis of pharmacy Clusters - WP1"
 author: "Diego Pajarito"
-date: "2026-03-25"
+date: "2026-04-27"
 output: html_document
 ---
 
@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## COPE-BP Clustering Feasibility
 
-This R Markdown document compiles the process cluster pharmacies for the feasibility phase. It is based on the agreements of the annual meeting and further analysis within the WP1 and WP2 teams.
+This R Markdown document compiles the process cluster pharmacies for the feasibility phase. It folows the guidelines from the annual projec meeting in 2025 and further analysis within the WP1 and WP2 teams.
 
 This document is automatically generated using the option **Knit** within an R-Markdown file. Therefore some content might not display correctly. Please contact the [Diego Pajarito Grajales](mailto:Diego.PajaritoGrajales@glasgow.ac.uk) for any additional requirement.
 
@@ -58,7 +58,6 @@ bd_data_geo <- read_excel("Survey-v2/02_PCS/03_database/01_preload/pk_pharmacy_l
 ```
 
 
-
 ```{r set_geometry_to_survey, include=FALSE}
 # First we need to add geometries to the data set. We use the values in coordinates stored as columns.
 # This uses a full join to only treat the data with known location
@@ -76,6 +75,23 @@ bd_data_geo <- bd_data_geo %>%
            remove = FALSE)  # Keeps original columns
 
 
+```
+
+
+Note that the team in Bangladesh have engaged a set of pharmacies to take part in a research action group. These are excluded from the analysis since they have diferential treatment.
+
+```{r read_bd_action_research, include=FALSE}
+# Bangladesh
+bd_dhaka_action_research <- read_csv("clustered-pharmacies/bd_dhaka_action_research_group.csv")
+#bd_dhaka_action_research$id <- as.character(bd_dhaka_action_research$id )
+bd_narsingdi_action_research <- read_csv("clustered-pharmacies/bd_dhaka_action_research_group.csv")
+#bd_narsingdi_action_research$id <- as.character(bd_narsingdi_action_research$id)
+```
+
+```{r exclude_bd_action_research, include=FALSE}
+# Using anti_join to exclude the pharmacies in the list
+bd_data_geo <- bd_data_geo %>% anti_join(bd_dhaka_action_research, by= c('pharmacy_id' = 'id'))
+bd_data_geo <- bd_data_geo %>% anti_join(bd_narsingdi_action_research, by= c('pharmacy_id' = 'id'))
 ```
 
 
