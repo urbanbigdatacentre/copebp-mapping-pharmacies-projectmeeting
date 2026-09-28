@@ -4,3 +4,5 @@ Survey-v2/
 .Rproj.user
 pharmacy-survey-repo.Rproj
 *.qmd
+.positai
+worldpop/
